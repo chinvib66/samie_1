@@ -2,26 +2,46 @@ import cv2
 import threading
 import datetime
 import numpy as np
-from .output_files import color_data_img, final_image, OUTPUT_DATA_FOLDER, OUTPUT_VIDEO_FOLDER, path_join
+from .output_files import color_data_img, final_image, path_join
 from .color_extractor import extract_colors
+
+
+# Important Variables
+BASE_DIR = None
+UPLOAD_FOLDER = None
+OUTPUT_VIDEO_FOLDER = None
+OUTPUT_DATA_FOLDER= None
+RECORD_FOLDER = None
+def init_path_2(a, b, c, d):
+    global BASE_DIR
+    BASE_DIR = a
+    global UPLOAD_FOLDER
+    UPLOAD_FOLDER = b
+    global OUTPUT_VIDEO_FOLDER
+    OUTPUT_VIDEO_FOLDER = c
+    global OUTPUT_DATA_FOLDER
+    OUTPUT_DATA_FOLDER = d
+    global RECORD_FOLDER
+    RECORD_FOLDER = path_join(BASE_DIR, 'record')
 
 
 class RecordingThread (threading.Thread):
     def __init__(self, name, camera, width=640, height=480):
+        global RECORD_FOLDER
         threading.Thread.__init__(self)
         self.name = name
         self.isRunning = True
         self.cap = camera
-        output_file_path = path_join(OUTPUT_VIDEO_FOLDER, 'outpit.webm')
+        output_file_path = path_join(RECORD_FOLDER, 'output.webm')
         fourcc = cv2.VideoWriter_fourcc('V','P','8','0')
-        self.out = cv2.VideoWriter(output_file_path ,fourcc, 30, (width,height))
+        self.out = cv2.VideoWriter(output_file_path ,fourcc, 10, (width,height))
 
     def run(self):
         while self.isRunning:
-            ret, frame = self.cap.read()
-            if ret:
-                self.out.write(frame)
-
+            # ret, frame = self.cap.read()
+            # if ret:
+            #     self.out.write(frame)
+            self.out.write(self.cap.current_frame)
         self.out.release()
 
     def stop(self):
@@ -30,37 +50,17 @@ class RecordingThread (threading.Thread):
     def __del__(self):
         self.out.release()
 
-
-def selfCam():
-    camera = cv2.VideoCapture(0)
-    if not camera.isOpened():
-            raise RuntimeError('Could not start camera.')
-        ### 15 fps probable
-    t = 0
-    while t < 150:
-        # read current frame
-        _, img = camera.read()
-        colors, percentage = extract_colors(img)
-        data_img = color_data_img(colors, percentage)
-        input_img = img
-        output_img = img
-        img = final_image(data_img, input_img, output_img)
-        # encode as a jpeg image and return it
-        yield cv2.imencode('.jpg', img)[1].tobytes()
-        t= t+1
-    camera.release()
-
-
 class VideoCamera(object):
     def __init__(self):
         # Open a camera
         self.cap = cv2.VideoCapture(0)
         self.current_frame = None
-        # Initialize video recording environment
-        self.is_record = False
-        self.out = None
         self.is_playing = True
         self.is_stopped = False
+        # Initialize video recording environment
+
+        self.is_record = False
+        self.out = None
 
         # Thread for recording
         self.recordingThread = None
@@ -77,35 +77,13 @@ class VideoCamera(object):
     
     def stop(self):
         self.is_playing = False
+        if self.is_record:
+            self.recordingThread.stop()
         self.is_record = False
-    # def get_frame(self):
-    #     ret, frame = self.cap.read()
-
-    #     if ret:
-    #         ret, jpeg = cv2.imencode('.jpg', frame)
-
-    #         # Record video
-    #         # if self.is_record:
-    #         #     if self.out == None:
-    #         #         fourcc = cv2.VideoWriter_fourcc(*'MJPG')
-    #         #         self.out = cv2.VideoWriter('./static/video.avi',fourcc, 20.0, (640,480))
-                
-    #         #     ret, frame = self.cap.read()
-    #         #     if ret:
-    #         #         self.out.write(frame)
-    #         # else:
-    #         #     if self.out != None:
-    #         #         self.out.release()
-    #         #         self.out = None  
-
-    #         return jpeg.tobytes()
-      
-    #     else:
-    #         return None
 
     def start_record(self):
         self.is_record = True
-        self.recordingThread = RecordingThread("Video Recording Thread", self.cap)
+        self.recordingThread = RecordingThread("Video Recording Thread", self)
         self.recordingThread.start()
 
     def stop_record(self):
@@ -113,7 +91,6 @@ class VideoCamera(object):
 
         if self.recordingThread != None:
             self.recordingThread.stop()
-
     
     def get_frame(self):
         try:
@@ -125,33 +102,23 @@ class VideoCamera(object):
             print(e)
             pass
         
-            # if ret:
-            #     ret, jpeg = cv2.imencode('.jpg', frame)
-            #     return jpeg.tobytes()
-            # else:
-            #     return None
     def get_input_frame(self):
-        # if self.is_playing and self.current_frame:
         frame = self.current_frame
         ret, jpeg = cv2.imencode('.jpg', frame)
         return jpeg.tobytes()
-        # return None
             
     def get_output_frame(self):
-        # if self.is_playing and self.current_frame:
         frame = self.current_frame
         ret, jpeg = cv2.imencode('.jpg', frame)
         return jpeg.tobytes()
-        #return None
 
     def get_data_frame(self):
-        # if self.is_playing and self.current_frame:
         frame = self.current_frame
         colors, percentage = extract_colors(frame)
         data_frame = color_data_img(colors, percentage)
         ret, jpeg = cv2.imencode('.jpg', data_frame)
         return jpeg.tobytes()
-        # return None
+
     def final_image(self):
         frame = self.current_frame
         input_img = frame

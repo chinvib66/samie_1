@@ -10,7 +10,7 @@ from multiprocessing.pool import ThreadPool
 # Custom Imports
 from processes.output_files import gen_color_data_video, init_paths, gen_output_video
 from processes.camera_opencv import Camera
-from processes.camera import VideoCamera
+from processes.camera import VideoCamera, init_path_2
 
 
 # Important Variables
@@ -30,7 +30,6 @@ CORS(app)
 
 # Thread definitions
 pool = ThreadPool(processes=2)
-live_pool = ThreadPool(processes=1)
 
 
 # Route Definitions
@@ -122,8 +121,6 @@ def play():
     if video_camera.is_stopped:
         video_camera.__init__()
     video_camera.play()
-    # if live_pool._state is not 0:
-    #     live_pool.apply_async(start_frames)
     return jsonify({'status':'Playing'})
 
 
@@ -133,6 +130,22 @@ def pause():
     try:
         video_camera.pause()
         return jsonify({'status':'Paused'})
+    except Exception as e:
+        return jsonify({'status':e})
+
+
+@app.route('/ondevice/record')
+def record():
+    global video_camera
+    if video_camera is None:
+        video_camera = VideoCamera()
+    
+    if video_camera.is_stopped:
+        video_camera.__init__()
+        video_camera.play()
+    try:
+        video_camera.start_record()
+        return jsonify( {'status':'Recording'})
     except Exception as e:
         return jsonify({'status':e})
 
@@ -238,7 +251,6 @@ def data_input_output():
     if video_camera == None:
         video_camera = VideoCamera()
     
-    # live_pool.apply_async(start_frames)
     time.sleep(0.5)
 
     while True:
@@ -262,5 +274,6 @@ def view_final_img():
 # App Run
 if __name__ == '__main__':
     init_paths(BASE_DIR, UPLOAD_FOLDER, OUTPUT_VIDEO_FOLDER, OUTPUT_DATA_FOLDER)
+    init_path_2(BASE_DIR, UPLOAD_FOLDER, OUTPUT_VIDEO_FOLDER, OUTPUT_DATA_FOLDER)
     app.run(host='0.0.0.0', threaded=True, debug=True)
     # socketio.run(app, debug=True)
