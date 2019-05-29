@@ -18,19 +18,20 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER = os.path.join(BASE_DIR,'uploads')
 OUTPUT_VIDEO_FOLDER = os.path.join(BASE_DIR,'output/video')
 OUTPUT_DATA_FOLDER = os.path.join(BASE_DIR,'output/data')
+RECORD_FOLDER = os.path.join(BASE_DIR,'record')
 
 # App Configurations
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_VIDEO_FOLDER'] = OUTPUT_VIDEO_FOLDER
 app.config['OUTPUT_DATA_FOLDER'] = OUTPUT_DATA_FOLDER
+app.config['RECORD_FOLDER'] = RECORD_FOLDER
 CORS(app)
 # socketio = SocketIO(app)
 
 
 # Thread definitions
 pool = ThreadPool(processes=2)
-
 
 # Route Definitions
 
@@ -52,6 +53,11 @@ def processed_file(filename):
 @app.route('/apiv1/data/<filename>')
 def data_file(filename):
     return send_from_directory(app.config['OUTPUT_DATA_FOLDER'], filename)
+
+
+@app.route('/apiv1/record/<filename>')
+def record_file(filename):
+    return send_from_directory(app.config['RECORD_FOLDER'], filename)
 
 
 @app.route('/apiv1/upload', methods=['GET', 'POST'])
@@ -104,8 +110,8 @@ def startProcess(filename):
 
 
 video_camera = None
-global_output_frame = None
-global_input_frame = None
+# global_output_frame = None
+# global_input_frame = None
 global_data_frame = None
 
 def start_frames():
@@ -154,13 +160,51 @@ def record():
 def stop():
     global video_camera
     try:
-        video_camera.stop()
+        file = video_camera.stop()
         video_camera.__del__()
-        return jsonify({'status':'Stopped'})
+        return jsonify({'status':'Stopped', 'file':file})
     except Exception as e:
         return jsonify({'status':e})
 
+def data_input_output():
+    global video_camera 
+    global global_data_frame
 
+    if video_camera == None:
+        video_camera = VideoCamera()
+    
+    time.sleep(0.5)
+
+    while True:
+        video_camera.get_frame()
+        frame = video_camera.final_image()
+
+        if frame != None:
+            global_data_frame = frame
+            yield (b'--frame\r\n'
+                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+        else:
+            yield (b'--frame\r\n'
+                            b'Content-Type: image/jpeg\r\n\r\n' + global_data_frame + b'\r\n\r\n')
+
+@app.route('/ondevice/view_final_img')
+def view_final_img():
+    return Response(data_input_output(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+# App Run
+if __name__ == '__main__':
+    init_paths(BASE_DIR, UPLOAD_FOLDER, OUTPUT_VIDEO_FOLDER, OUTPUT_DATA_FOLDER)
+    init_path_2(BASE_DIR, UPLOAD_FOLDER, OUTPUT_VIDEO_FOLDER, OUTPUT_DATA_FOLDER)
+    app.run(host='0.0.0.0', threaded=True, debug=True)
+    # socketio.run(app, debug=True)
+
+
+
+
+
+## Code for data, input, output as different streams
 
 # def data_stream():
 #     global video_camera 
@@ -243,37 +287,3 @@ def stop():
 #     return Response(output_stream(),
 #                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
-
-def data_input_output():
-    global video_camera 
-    global global_data_frame
-
-    if video_camera == None:
-        video_camera = VideoCamera()
-    
-    time.sleep(0.5)
-
-    while True:
-        video_camera.get_frame()
-        frame = video_camera.final_image()
-
-        if frame != None:
-            global_data_frame = frame
-            yield (b'--frame\r\n'
-                    b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
-        else:
-            yield (b'--frame\r\n'
-                            b'Content-Type: image/jpeg\r\n\r\n' + global_data_frame + b'\r\n\r\n')
-
-@app.route('/ondevice/view_final_img')
-def view_final_img():
-    return Response(data_input_output(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-# App Run
-if __name__ == '__main__':
-    init_paths(BASE_DIR, UPLOAD_FOLDER, OUTPUT_VIDEO_FOLDER, OUTPUT_DATA_FOLDER)
-    init_path_2(BASE_DIR, UPLOAD_FOLDER, OUTPUT_VIDEO_FOLDER, OUTPUT_DATA_FOLDER)
-    app.run(host='0.0.0.0', threaded=True, debug=True)
-    # socketio.run(app, debug=True)
