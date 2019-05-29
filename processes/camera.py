@@ -1,6 +1,7 @@
 import cv2
 import threading
 import datetime
+import time
 import numpy as np
 from .output_files import color_data_img, final_image, path_join
 from .color_extractor import extract_colors
@@ -32,9 +33,11 @@ class RecordingThread (threading.Thread):
         self.name = name
         self.isRunning = True
         self.cap = camera
+        fps = self.cap.cap.get(cv2.CAP_PROP_FPS)
+        print(fps)
         output_file_path = path_join(RECORD_FOLDER, 'output.webm')
         fourcc = cv2.VideoWriter_fourcc('V','P','8','0')
-        self.out = cv2.VideoWriter(output_file_path ,fourcc, 10, (width,height))
+        self.out = cv2.VideoWriter(output_file_path ,fourcc, fps, (width,height))
 
     def run(self):
         while self.isRunning:
@@ -76,9 +79,10 @@ class VideoCamera(object):
         self.is_playing = False
     
     def stop(self):
-        self.is_playing = False
         if self.is_record:
             self.recordingThread.stop()
+        time.sleep(.2)
+        self.is_playing = False
         self.is_record = False
 
     def start_record(self):
