@@ -2,6 +2,7 @@ import cv2
 import threading
 import datetime
 import time
+import multiprocessing
 import numpy as np
 from .output_files import color_data_img, final_image, path_join
 from .color_extractor import extract_colors
@@ -33,7 +34,7 @@ class RecordingThread (threading.Thread):
         self.isRunning = True
         self.camera = camera
         # Output initialisation
-        fps = self.camera.cap.get(cv2.CAP_PROP_FPS)/2
+        fps = self.camera.cap.get(cv2.CAP_PROP_FPS)
         print(fps)
         output_file_path = path_join(RECORD_FOLDER, 'output.webm')
         fourcc = cv2.VideoWriter_fourcc('V','P','8','0')
@@ -63,7 +64,9 @@ class VideoCamera(object):
         # Initialize video recording environment
         self.is_record = False
         # Thread for recording
+        self.out=None
         self.recordingThread = None
+        self.recordingProcess = None
     
     def __del__(self):
         self.cap.release()
@@ -85,24 +88,54 @@ class VideoCamera(object):
         self.is_record = False
         return filename
 
-    def start_record(self):
+    def start_record_t(self):
         self.is_record = True
         self.recordingThread = RecordingThread(self)
         self.recordingThread.start()
 
-    def stop_record(self):
+    def stop_record_t(self):
         self.is_record = False
         if self.recordingThread != None:
             self.recordingThread.stop()
             return 'output.webm'
         return None
     
+    def writer(self, cap):
+        while self.is_record:
+            self.out.write(cap.current_frame)
+        self.out.release()
+
+    def start_record(self):
+        fourcc = cv2.VideoWriter_fourcc('V','P','8','0')
+        fps = self.cap.get(cv2.CAP_PROP_FPS)
+        global RECORD_FOLDER
+        output_file_path = path_join(RECORD_FOLDER, 'output.webm')
+        self.out=cv2.VideoWriter(output_file_path ,fourcc, fps, (640,480))
+        self.is_record = True
+        # return None
+        # try:
+        #     # self.recordingProcess = multiprocessing.Process(target=self.writer, args=(self.cap,))
+        #     # self.recordingProcess.start()
+        # except Exception as e:
+        #     print('multip err',e)
+
+    def stop_record(self):
+        self.is_record = False
+        self.out.release()
+        # if self.recordingProcess != None:
+        #     self.recordingProcess.join()
+        return 'output.webm'
+        # return None
+    
+
     def get_frame(self):
         try:
             if self.is_playing:
                 ret, frame = self.cap.read()
                 if ret:
                     self.current_frame = frame
+                    if self.is_record:
+                        self.out.write(frame)
         except Exception as e:
             print(e)
             pass

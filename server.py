@@ -9,8 +9,8 @@ from multiprocessing.pool import ThreadPool
 
 # Custom Imports
 from processes.output_files import gen_color_data_video, init_paths, gen_output_video
-from processes.camera_opencv import Camera
 from processes.camera import VideoCamera, init_path_2
+#from processes.camera_1 import VideoCamera, init_path_2
 
 
 # Important Variables
